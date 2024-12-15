@@ -1069,6 +1069,43 @@ public class RankingSystem : MonoBehaviour
 ```
 
 <br>
+
+#### 유니티 스크린 샷
+
+##### 회원가입
+![스크린샷 2024-12-16 05 05 59](https://github.com/user-attachments/assets/56395f0d-68c6-47ef-95c9-c902a97e8187)
+![스크린샷 2024-12-16 05 13 43](https://github.com/user-attachments/assets/9c54090e-f102-4efe-af39-649dc88ca48b)
+
+
+<br>
+
+##### 로그인
+![스크린샷 2024-12-16 05 07 59](https://github.com/user-attachments/assets/b2f01bba-372e-4a4a-b28c-d777581cc8a1)
+![스크린샷 2024-12-16 05 08 30](https://github.com/user-attachments/assets/9508f346-ebb8-40c2-a903-69c4e62f031c)
+
+<br>
+
+##### 가위바위보
+![스크린샷 2024-12-16 05 08 50](https://github.com/user-attachments/assets/7220ae98-e614-460d-8781-8b2a7cd3c666)
+![스크린샷 2024-12-16 05 09 16](https://github.com/user-attachments/assets/69ad7d85-aed6-41e9-850d-0c5ea08bb36a)
+
+<br>
+
+##### 전적 & 랭킹
+![스크린샷 2024-12-16 05 09 57](https://github.com/user-attachments/assets/128c4b8e-45c8-4a2f-8739-6e95a557c5c3)
+![스크린샷 2024-12-16 05 10 15](https://github.com/user-attachments/assets/c1203aa8-eb9f-4df6-86d3-32c7b2cca7bb)
+
+<br>
+
+##### 데이터 얻기
+![스크린샷 2024-12-16 05 11 21](https://github.com/user-attachments/assets/71bf4083-ae93-4f71-996f-e3077877653b)
+
+<br>
+
+##### 로그아웃
+![스크린샷 2024-12-16 05 11 54](https://github.com/user-attachments/assets/f68bbde9-9cd7-4ecf-9f47-8c4ae8bf52b0)
+
+
 <br>
 <br>
 
