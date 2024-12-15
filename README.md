@@ -377,7 +377,7 @@ ACCESS_TOKEN_SECRET=your-access-token-secret
 REFRESH_TOKEN_SECRET=your-refresh-token-secret
 DB_HOST='localhost'
 DB_USER='root'
-DB_PASSWORD='shingu'
+DB_PASSWORD='shingu'
 DB_NAME='Game_DB_02'
 ```
 
@@ -1066,4 +1066,26 @@ public class RankingSystem : MonoBehaviour
         }
     }
 }
+```
+
+<br>
+<br>
+<br>
+
+### 해결 과정
+#### 유튜브 영상 참고
+[Node.js 웹서비스 로그인 회원가입 구현하기 파트 2](https://www.youtube.com/watch?v=IYgU9yfPpHs&list=LL&index=1&t=3s) <br>
+[HTTP 서버통신 및 API 사용방법](https://www.youtube.com/watch?v=GxCf1SsLVB4&t=706s)
+
+<br>
+<br>
+
+### 개선점
+#### 비밀번호 강도
+``` js
+  // 비밀번호 강도 검사 (예시: 최소 8자리, 숫자와 특수문자 포함)
+    const passwordStrengthRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[A-Za-z0-9!@#$%^&*]{8,}$/;
+    if (!passwordStrengthRegex.test(password)) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long and contain a number and a special character.' });
+    }
 ```
