@@ -422,5 +422,648 @@ DB_NAME='Game_DB_02'
 ![스크린샷 2024-12-16 04 22 07](https://github.com/user-attachments/assets/8e678bf4-87f6-44d9-a013-bb824ab53acb)
 ![스크린샷 2024-12-16 04 22 21](https://github.com/user-attachments/assets/57c4ddf2-cd4c-43ab-a584-5f5aabc9174e)
 
+<br>
+
+##### 전적보기
+![스크린샷 2024-12-16 04 24 23](https://github.com/user-attachments/assets/ed5f32ed-c46f-4c63-b21b-14b0a8b34e36)
 
 
+<br>
+
+##### 랭킹
+![스크린샷 2024-12-16 04 25 50](https://github.com/user-attachments/assets/997a907c-059c-4526-ab94-0c4022b319cc)
+
+<br>
+<br>
+<br>
+
+### 유니티
+
+#### 스크립트
+
+##### AuthManager.cs
+``` cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Networking;
+using System;
+using System.Text;
+
+// 인증 요청을 위한 클래스
+public class AuthRequest
+{
+    public string username;  // 사용자 이름
+    public string password;  // 사용자 비밀번호
+
+    // 생성자
+    public AuthRequest(string username, string password)
+    {
+        this.username = username;
+        this.password = password;
+    }
+}
+
+// 로그인 응답을 처리할 클래스
+public class LoginResponse
+{
+    public string accessToken;  // 로그인 성공 시 반환되는 access token
+    public string refreshToken; // 로그인 성공 시 반환되는 refresh token
+}
+
+// refresh token을 사용하여 새로운 access token을 요청하는 응답 클래스
+[System.Serializable]
+public class RefreshTokenResponse
+{
+    public string accessToken;  // 새로 발급된 access token
+}
+
+// refresh token 요청을 위한 클래스
+[System.Serializable]
+public class RefreshTokenRequest
+{
+    public string refreshToken;  // refresh token
+
+    // 생성자
+    public RefreshTokenRequest(string refreshToken)
+    {
+        this.refreshToken = refreshToken;
+    }
+}
+
+// 인증 관련 처리를 담당하는 클래스
+public class AuthManager : MonoBehaviour
+{
+    // 서버 URL 및 PlayerPrefs에 저장할 키값 정의
+    private const string SERVER_URL = "http://localhost:3000";
+    private const string ACCESS_TOKEN_PREFS_KET = "AccessToken";
+    private const string REFRESH_TOKEN_PREFS_KEY = "RefreshToken";
+    private const string TOKEN_EXPIRY_PREFS_KEY = "TokenExpiry";
+
+    // 토큰 및 만료 시간 저장 변수
+    private string accessToken;
+    private string refreshToken;
+    private DateTime tokenExpiryTime;
+
+    // 초기화 시 토큰을 PlayerPrefs에서 불러옴
+    private void Start()
+    {
+        LoadTokenFromPrefs();
+    }
+
+    // PlayerPrefs에서 저장된 토큰을 불러오는 함수
+    private void LoadTokenFromPrefs()
+    {
+        accessToken = PlayerPrefs.GetString(ACCESS_TOKEN_PREFS_KET);
+        refreshToken = PlayerPrefs.GetString(REFRESH_TOKEN_PREFS_KEY);
+
+        long expiryTicks = Convert.ToInt64(PlayerPrefs.GetString(TOKEN_EXPIRY_PREFS_KEY, "0"));
+        tokenExpiryTime = new DateTime(expiryTicks);
+    }
+
+    // 토큰을 PlayerPrefs에 저장하는 함수
+    private void SaveTokenToPrefs(string accessToken, string refreshToken, DateTime expiryTime)
+    {
+        PlayerPrefs.SetString(ACCESS_TOKEN_PREFS_KET, accessToken);
+        PlayerPrefs.SetString(REFRESH_TOKEN_PREFS_KEY, refreshToken);
+        PlayerPrefs.SetString(TOKEN_EXPIRY_PREFS_KEY, expiryTime.Ticks.ToString());
+        PlayerPrefs.Save();
+
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.tokenExpiryTime = expiryTime;
+    }
+
+    // 회원가입 요청을 보내는 코루틴
+    public IEnumerator Register(string username, string password)
+    {
+        // 요청 데이터 생성
+        AuthRequest request = new AuthRequest(username, password);
+        var jsonData = JsonUtility.ToJson(request);
+
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/register", "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();  // 서버 요청 보내기
+
+            // 서버 응답 처리
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"Registeration Error : {www.error}");
+            }
+            else
+            {
+                Debug.Log("Registeration successful");
+            }
+        }
+    }
+
+    // 로그인 요청을 보내는 코루틴
+    public IEnumerator Login(string username, string password)
+    {
+        AuthRequest request = new AuthRequest(username, password);
+        var jsonData = JsonUtility.ToJson(request);
+
+        using (UnityWebRequest www = new UnityWebRequest($"{SERVER_URL}/login", "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();  // 서버 요청 보내기
+
+            // 서버 응답 처리
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"Login Error : {www.error}");
+            }
+            else
+            {
+                // 로그인 성공 시 accessToken과 refreshToken을 저장
+                var response = JsonUtility.FromJson<LoginResponse>(www.downloadHandler.text);
+                SaveTokenToPrefs(response.accessToken, response.refreshToken, DateTime.UtcNow.AddMinutes(15));
+
+                Debug.Log("Login successful");
+            }
+        }
+    }
+
+    // 로그아웃 요청을 보내는 코루틴
+    public IEnumerator Logout()
+    {
+        var logoutData = new { refreshToken };
+        var jsonData = JsonUtility.ToJson(logoutData);
+
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/logout", "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();  // 서버 요청 보내기
+
+            // 서버 응답 처리
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"Logout Error : {www.error}");
+            }
+            else
+            {
+                // 로그아웃 성공 시 토큰 정보 삭제
+                accessToken = "";
+                refreshToken = "";
+                tokenExpiryTime = DateTime.MinValue;
+                PlayerPrefs.DeleteKey(ACCESS_TOKEN_PREFS_KET);
+                PlayerPrefs.DeleteKey(REFRESH_TOKEN_PREFS_KEY);
+                PlayerPrefs.DeleteKey(TOKEN_EXPIRY_PREFS_KEY);
+                PlayerPrefs.Save();
+
+                Debug.Log("Logout successful");
+            }
+        }
+    }
+
+    // refresh token을 사용해 access token을 갱신하는 코루틴
+    public IEnumerator RefreshToken()
+    {
+        if (string.IsNullOrEmpty(refreshToken))
+        {
+            Debug.Log("리프레시 토큰이 없습니다.");
+            yield break;
+        }
+
+        var refreshData = new RefreshTokenRequest(refreshToken);
+        var jsonData = JsonUtility.ToJson(refreshData);
+
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/token", "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            yield return www.SendWebRequest();  // 서버 요청 보내기
+
+            // 서버 응답 처리
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"Token Refresh Error : {www.error}");
+                yield return Login("username", "password"); // 로그인 시도 (실제로는 저장된 사용자 정보 사용)
+            }
+            else
+            {
+                // 갱신된 accessToken 저장
+                var response = JsonUtility.FromJson<RefreshTokenResponse>(www.downloadHandler.text);
+                SaveTokenToPrefs(response.accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15));
+                Debug.Log("Token refreshed successfully");
+            }
+        }
+    }
+
+    // 보호된 데이터 요청을 보내는 코루틴
+    public IEnumerator GetProtectedData()
+    {
+        // 토큰이 없거나 만료된 경우 토큰 갱신 시도
+        if (string.IsNullOrEmpty(accessToken) || DateTime.UtcNow >= tokenExpiryTime)
+        {
+            Debug.Log("토큰이 만료되었습니다. 토큰 갱신 시도");
+            yield return RefreshToken();  // 토큰 갱신 시도
+        }
+
+        // 보호된 데이터 요청 보내기
+        using (UnityWebRequest www = UnityWebRequest.Get($"{SERVER_URL}/protected"))
+        {
+            www.SetRequestHeader("Authorization", $"Bearer {accessToken}");
+
+            yield return www.SendWebRequest();  // 서버 요청 보내기
+
+            // 서버 응답 처리
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"GetProtectedData Error : {www.error}");
+            }
+            else
+            {
+                Debug.Log($"Protected Data : {www.downloadHandler.text}");
+            }
+        }
+    }
+}
+```
+
+<br>
+
+##### AuthUI
+``` cs
+using System.Collections;
+using System.Collections.Generic;
+using TMPro; // TextMeshPro를 사용하기 위한 네임스페이스
+using UnityEngine;
+using UnityEngine.UI; // UI 컨트롤을 위한 네임스페이스
+
+// AuthUI 클래스는 사용자 인터페이스(UI)를 처리하고 AuthManager와 상호작용하는 역할을 합니다.
+public class AuthUI : MonoBehaviour
+{
+    [Header("#1 인풋 UI")]
+    // 사용자 이름과 비밀번호를 입력받는 필드
+    public TMP_InputField usernameInput;
+    public TMP_InputField passwordInput;
+
+    [Header("#2 버튼 UI")]
+    // 회원가입, 로그인, 로그아웃, 데이터 요청 버튼
+    public Button registerButton;
+    public Button loginButton;
+    public Button logoutButton;
+    public Button getDataButton;
+
+    // 인증 관련 작업을 수행하는 AuthManager의 참조
+    private AuthManager authManager;
+
+    // Start 메서드: UI 초기화 및 버튼 클릭 이벤트 연결
+    private void Start()
+    {
+        // 동일한 게임 오브젝트에 있는 AuthManager 컴포넌트 가져오기
+        authManager = GetComponent<AuthManager>();
+
+        // 버튼 클릭 이벤트에 핸들러 메서드 연결
+        registerButton.onClick.AddListener(OnResisterClick);
+        loginButton.onClick.AddListener(OnLoginClick);
+        logoutButton.onClick.AddListener(OnLogoutClick);
+        getDataButton.onClick.AddListener(OnGetDataClick);
+    }
+
+    // 회원가입 버튼 클릭 이벤트 핸들러
+    private void OnResisterClick() => StartCoroutine(RegisterCorutine());
+    
+    // 로그인 버튼 클릭 이벤트 핸들러
+    private void OnLoginClick() => StartCoroutine(LoginCorutine());
+    
+    // 로그아웃 버튼 클릭 이벤트 핸들러
+    private void OnLogoutClick() => StartCoroutine(LogoutCorutine());
+    
+    // 보호된 데이터 요청 버튼 클릭 이벤트 핸들러
+    private void OnGetDataClick() => StartCoroutine(GetDataCorutine());
+
+    // 회원가입 코루틴: 입력된 사용자 이름과 비밀번호를 AuthManager의 Register 메서드로 전달
+    private IEnumerator RegisterCorutine()
+    {
+        yield return authManager.Register(usernameInput.text, passwordInput.text);
+    }
+
+    // 로그인 코루틴: 입력된 사용자 이름과 비밀번호를 AuthManager의 Login 메서드로 전달
+    private IEnumerator LoginCorutine()
+    {
+        yield return authManager.Login(usernameInput.text, passwordInput.text);
+    }
+
+    // 로그아웃 코루틴: AuthManager의 Logout 메서드 호출
+    private IEnumerator LogoutCorutine()
+    {
+        yield return authManager.Logout();
+    }
+
+    // 보호된 데이터 요청 코루틴: AuthManager의 GetProtectedData 메서드 호출
+    private IEnumerator GetDataCorutine()
+    {
+        yield return StartCoroutine(authManager.GetProtectedData());
+    }
+}
+```
+
+<br>
+
+##### GameManager.cs
+``` cs
+using System.Collections;
+using UnityEngine.Networking; // Unity의 네트워크 요청을 처리하기 위한 네임스페이스
+using UnityEngine;
+
+// 서버 응답으로 전달되는 게임 결과 데이터를 표현하는 클래스
+[System.Serializable]
+public class GameResult
+{
+    public string result;       // 게임 결과 (예: "win", "lose", "draw")
+    public string serverChoice; // 서버가 선택한 가위바위보 값 (예: "scissors")
+}
+
+// 클라이언트에서 서버로 보낼 데이터 구조를 나타내는 클래스
+[System.Serializable]
+public class ChoiceData
+{
+    public string choice;       // 플레이어가 선택한 가위바위보 값 (예: "rock", "paper", "scissors")
+}
+
+// 새로고침 토큰 데이터를 저장하기 위한 클래스
+[System.Serializable]
+public class RefreshTokenData
+{
+    public string refreshToken; // 서버에서 발급된 리프레시 토큰
+}
+
+// GameManager 클래스는 게임 로직 및 서버와의 네트워크 통신을 관리합니다.
+public class GameManager : MonoBehaviour
+{
+    private const string SERVER_URL = "http://localhost:3000/play"; // 서버의 게임 API URL
+
+    // 플레이어의 선택을 서버로 보내고 응답을 처리하는 코루틴
+    public IEnumerator PostPlayGame(string choice)
+    {
+        // 서버로 보낼 데이터 생성
+        ChoiceData jsonData = new ChoiceData { choice = choice };
+
+        // 데이터를 JSON 형식으로 변환
+        string json = JsonUtility.ToJson(jsonData);
+
+        // HTTP POST 요청 생성
+        using (UnityWebRequest www = UnityWebRequest.PostWwwForm(SERVER_URL, "POST"))
+        {
+            // 요청 헤더에 JWT 토큰 추가
+            www.SetRequestHeader("Authorization", "Bearer " + PlayerPrefs.GetString("AccessToken"));
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            // 요청 본문에 JSON 데이터 추가
+            byte[] jsonToSend = new System.Text.UTF8Encoding().GetBytes(json);
+            www.uploadHandler = new UploadHandlerRaw(jsonToSend); // JSON 데이터를 전송용으로 설정
+            www.downloadHandler = new DownloadHandlerBuffer();    // 응답 데이터를 받을 버퍼 설정
+
+            // 서버로 요청 전송
+            yield return www.SendWebRequest();
+
+            // 요청 성공 여부 확인
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                // 서버로부터의 응답 처리
+                string responseText = www.downloadHandler.text;
+                Debug.Log("Response: " + responseText);
+
+                // 응답 데이터를 바탕으로 게임 결과 처리
+                ProcessGameResult(responseText);
+            }
+            else
+            {
+                // 요청 실패 시 에러 메시지 출력
+                Debug.Log("Error: " + www.error);
+            }
+        }
+    }
+
+    // 서버에서 받은 게임 결과를 처리하는 메서드
+    private void ProcessGameResult(string responseText)
+    {
+        // 서버 응답 JSON 데이터를 GameResult 객체로 변환
+        var resultData = JsonUtility.FromJson<GameResult>(responseText);
+
+        // 서버에서 받은 게임 결과와 서버의 선택 출력
+        Debug.Log("Game Result: " + resultData.result);         // 예: "win"
+        Debug.Log("Server Choice: " + resultData.serverChoice); // 예: "scissors"
+
+        // 추가적으로 UI 업데이트나 게임 로직 처리 가능
+    }
+}
+```
+
+##### GameUI.cs
+``` cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using TMPro;
+using UnityEngine.UI;
+
+// GameUI 클래스는 UI 요소와 게임 로직 간의 상호작용을 관리합니다.
+public class GameUI : MonoBehaviour
+{
+    [Header("#1 가위바위보 버튼 UI")]
+    public Button rockButton;       // '바위' 버튼
+    public Button paperButton;      // '보' 버튼
+    public Button scissorsButton;   // '가위' 버튼
+
+    [Header("#2 게임 결과 UI")]
+    public TextMeshProUGUI resultText;        // 게임 결과를 표시하는 텍스트
+    public TextMeshProUGUI serverChoiceText;  // 서버의 선택을 표시하는 텍스트
+    public TextMeshProUGUI userChoiceText;    // 플레이어의 선택을 표시하는 텍스트
+
+    [Header("#3 게임 매니저 및 랭킹 시스템")]
+    public Button HistoryButton;    // 게임 히스토리 버튼
+    public Button RankingButton;    // 랭킹 버튼
+
+    // 게임과 관련된 매니저 클래스 참조
+    private GameManager gameManager;               // 게임 로직을 처리하는 매니저
+    private GameHistoryManager gameHistoryManager; // 게임 히스토리 데이터를 관리하는 매니저
+    private RankingSystem rankingSystem;           // 랭킹 시스템을 관리하는 매니저
+
+    // 게임 시작 시 초기화
+    private void Start()
+    {
+        // 게임 매니저 및 관련 컴포넌트 초기화
+        gameManager = GetComponent<GameManager>();
+        gameHistoryManager = GetComponent<GameHistoryManager>();
+        rankingSystem = GetComponent<RankingSystem>();
+
+        // 버튼 클릭 이벤트에 리스너 등록
+        rockButton.onClick.AddListener(() => OnRockButtonClick());
+        paperButton.onClick.AddListener(() => OnPaperButtonClick());
+        scissorsButton.onClick.AddListener(() => OnScissorsButtonClick());
+        HistoryButton.onClick.AddListener(() => OnHistoryButtonClick());
+        RankingButton.onClick.AddListener(() => OnRankingButtonClick());
+    }
+
+    // '바위' 버튼 클릭 시 호출
+    private void OnRockButtonClick() => StartCoroutine(PlayGameCoroutine("rock"));
+
+    // '보' 버튼 클릭 시 호출
+    private void OnPaperButtonClick() => StartCoroutine(PlayGameCoroutine("paper"));
+
+    // '가위' 버튼 클릭 시 호출
+    private void OnScissorsButtonClick() => StartCoroutine(PlayGameCoroutine("scissors"));
+
+    // 히스토리 버튼 클릭 시 호출
+    private void OnHistoryButtonClick() => StartCoroutine(GetHistoryCoroutine());
+
+    // 랭킹 버튼 클릭 시 호출
+    private void OnRankingButtonClick() => StartCoroutine(GetRankingCoroutine());
+
+    // 선택한 가위바위보를 서버에 전송하고 결과를 처리하는 코루틴
+    private IEnumerator PlayGameCoroutine(string choice)
+    {
+        yield return gameManager.PostPlayGame(choice); // 선택한 데이터를 서버로 전송
+    }
+
+    // 게임 히스토리를 서버에서 가져오는 코루틴
+    private IEnumerator GetHistoryCoroutine()
+    {
+        yield return gameHistoryManager.GetHistory(); // 히스토리 데이터 요청
+    }
+
+    // 랭킹 데이터를 서버에서 가져오는 코루틴
+    private IEnumerator GetRankingCoroutine()
+    {
+        yield return rankingSystem.FetchRanking(); // 랭킹 데이터 요청
+    }
+}
+```
+
+<br>
+
+##### GameHistoryManager.cs
+
+``` cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Networking;
+
+// 서버에서 반환된 게임 히스토리 데이터 구조
+[System.Serializable]
+public class GameHistoryResponse
+{
+    public List<GameHistory> history; // 게임 히스토리의 리스트
+}
+
+// 개별 게임 히스토리 데이터 구조
+[System.Serializable]
+public class GameHistory
+{
+    public string user_choice;   // 사용자가 선택한 옵션 (가위, 바위, 보)
+    public string server_choice; // 서버가 선택한 옵션
+    public string result;        // 게임 결과 (승리, 패배, 무승부 등)
+    public string timestamp;     // 게임이 진행된 시간
+}
+
+// GameHistoryManager 클래스는 서버와 통신하여 게임 히스토리를 관리합니다.
+public class GameHistoryManager : MonoBehaviour
+{
+    private const string SERVER_URL = "http://localhost:3000/history"; // 히스토리 API의 엔드포인트 URL
+
+    // 서버에서 게임 히스토리 데이터를 가져오는 메서드
+    public IEnumerator GetHistory()
+    {
+        // UnityWebRequest를 사용해 서버에 GET 요청
+        using (UnityWebRequest www = UnityWebRequest.Get(SERVER_URL))
+        {
+            // 요청 헤더에 인증 토큰 추가
+            www.SetRequestHeader("Authorization", "Bearer " + PlayerPrefs.GetString("AccessToken"));
+
+            // 서버로 요청을 보냄
+            yield return www.SendWebRequest();
+
+            // 요청 결과 처리
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                // 서버 응답을 텍스트로 가져옴
+                string responseText = www.downloadHandler.text;
+                Debug.Log("History: " + responseText);
+
+                // 히스토리 데이터 처리
+                ProcessGameHistory(responseText);
+            }
+            else
+            {
+                // 요청 실패 시 오류 로그 출력
+                Debug.Log("Error: " + www.error);
+            }
+        }
+    }
+
+    // 서버에서 받은 게임 히스토리 데이터를 처리하는 메서드
+    private void ProcessGameHistory(string responseText)
+    {
+        // JSON 데이터를 GameHistoryResponse 객체로 변환
+        var historyData = JsonUtility.FromJson<GameHistoryResponse>(responseText);
+
+        // 각 게임 기록 출력
+        foreach (var game in historyData.history)
+        {
+            Debug.Log($"Choice: {game.user_choice}, Server: {game.server_choice}, Result: {game.result}, Time: {game.timestamp}");
+        }
+    }
+}
+```
+
+<br>
+
+##### RankingSystem.cs
+``` cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Networking;
+
+// RankingSystem 클래스는 서버에서 랭킹 데이터를 가져와 처리하는 역할을 합니다.
+public class RankingSystem : MonoBehaviour
+{
+    private const string SERVER_URL = "http://localhost:3000/ranking"; // 랭킹 API의 엔드포인트 URL
+
+    // 서버에서 랭킹 데이터를 가져오는 코루틴
+    public IEnumerator FetchRanking()
+    {
+        // UnityWebRequest를 사용하여 서버에 GET 요청을 보냄
+        UnityWebRequest request = UnityWebRequest.Get(SERVER_URL);
+
+        // 요청이 완료될 때까지 대기
+        yield return request.SendWebRequest();
+
+        // 요청 결과 처리
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            // 요청 성공 시 서버 응답 데이터를 문자열로 가져옴
+            string rankingData = request.downloadHandler.text;
+            Debug.Log("Ranking Data: " + rankingData);
+
+            // 받은 랭킹 데이터를 UI에 표시하거나 추가 작업 수행
+            // 랭킹 데이터를 JSON으로 파싱한 후 사용 가능
+        }
+        else
+        {
+            // 요청 실패 시 오류 로그 출력
+            Debug.LogError("Failed to fetch ranking: " + request.error);
+        }
+    }
+}
+```
