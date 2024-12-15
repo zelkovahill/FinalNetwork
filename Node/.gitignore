@@ -1,0 +1,29 @@
+# Node.js 패키지 매니저 관련 파일들
+/node_modules/
+
+# 로그 파일
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# 빌드 관련 파일
+/dist/
+/build/
+
+# 운영체제 관련 파일
+.DS_Store
+Thumbs.db
+
+# 환경설정 파일들 (보통 숨김 처리)
+.env
+*.env
+
+# 기타 IDE 관련 파일들
+/.vscode/
+/.idea/
+
+# 테스트 커버리지 관련 파일
+/coverage/
+
+# .env 파일은 포함시키지 않음 (기존 항목 주석 처리 또는 삭제)
+# .env
