@@ -5,12 +5,13 @@ using UnityEngine.Networking;
 using System;
 using System.Text;
 
-
+// 인증 요청을 위한 클래스
 public class AuthRequest
 {
-    public string username;
-    public string password;
+    public string username;  // 사용자 이름
+    public string password;  // 사용자 비밀번호
 
+    // 생성자
     public AuthRequest(string username, string password)
     {
         this.username = username;
@@ -18,32 +19,37 @@ public class AuthRequest
     }
 }
 
+// 로그인 응답을 처리할 클래스
 public class LoginResponse
 {
-    public string accessToken;
-    public string refreshToken;
+    public string accessToken;  // 로그인 성공 시 반환되는 access token
+    public string refreshToken; // 로그인 성공 시 반환되는 refresh token
 }
 
+// refresh token을 사용하여 새로운 access token을 요청하는 응답 클래스
 [System.Serializable]
 public class RefreshTokenResponse
 {
-    public string accessToken;
+    public string accessToken;  // 새로 발급된 access token
 }
 
+// refresh token 요청을 위한 클래스
 [System.Serializable]
 public class RefreshTokenRequest
 {
-    public string refreshToken;
+    public string refreshToken;  // refresh token
 
+    // 생성자
     public RefreshTokenRequest(string refreshToken)
     {
         this.refreshToken = refreshToken;
     }
 }
 
+// 인증 관련 처리를 담당하는 클래스
 public class AuthManager : MonoBehaviour
 {
-    // 서버 URL 및 PlayerPrefs 키값 정의
+    // 서버 URL 및 PlayerPrefs에 저장할 키값 정의
     private const string SERVER_URL = "http://localhost:3000";
     private const string ACCESS_TOKEN_PREFS_KET = "AccessToken";
     private const string REFRESH_TOKEN_PREFS_KEY = "RefreshToken";
@@ -54,11 +60,13 @@ public class AuthManager : MonoBehaviour
     private string refreshToken;
     private DateTime tokenExpiryTime;
 
+    // 초기화 시 토큰을 PlayerPrefs에서 불러옴
     private void Start()
     {
         LoadTokenFromPrefs();
     }
 
+    // PlayerPrefs에서 저장된 토큰을 불러오는 함수
     private void LoadTokenFromPrefs()
     {
         accessToken = PlayerPrefs.GetString(ACCESS_TOKEN_PREFS_KET);
@@ -68,7 +76,7 @@ public class AuthManager : MonoBehaviour
         tokenExpiryTime = new DateTime(expiryTicks);
     }
 
-    // PlayerPrefs에 토큰 정보 저장
+    // 토큰을 PlayerPrefs에 저장하는 함수
     private void SaveTokenToPrefs(string accessToken, string refreshToken, DateTime expiryTime)
     {
         PlayerPrefs.SetString(ACCESS_TOKEN_PREFS_KET, accessToken);
@@ -76,31 +84,28 @@ public class AuthManager : MonoBehaviour
         PlayerPrefs.SetString(TOKEN_EXPIRY_PREFS_KEY, expiryTime.Ticks.ToString());
         PlayerPrefs.Save();
 
-        
-
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.tokenExpiryTime = expiryTime;
-
-
     }
 
-
-    // 회원 가입 코루틴
+    // 회원가입 요청을 보내는 코루틴
     public IEnumerator Register(string username, string password)
     {
+        // 요청 데이터 생성
         AuthRequest request = new AuthRequest(username, password);
         var jsonData = JsonUtility.ToJson(request);
 
         using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/register", "POST"))
         {
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
 
-            yield return www.SendWebRequest();
+            yield return www.SendWebRequest();  // 서버 요청 보내기
 
+            // 서버 응답 처리
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.Log($"Registeration Error : {www.error}");
@@ -112,38 +117,38 @@ public class AuthManager : MonoBehaviour
         }
     }
 
-    // 로그인 코루틴
+    // 로그인 요청을 보내는 코루틴
     public IEnumerator Login(string username, string password)
     {
-        // var user = new { username, password };
         AuthRequest request = new AuthRequest(username, password);
         var jsonData = JsonUtility.ToJson(request);
 
         using (UnityWebRequest www = new UnityWebRequest($"{SERVER_URL}/login", "POST"))
         {
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
 
-            yield return www.SendWebRequest();
+            yield return www.SendWebRequest();  // 서버 요청 보내기
 
+            // 서버 응답 처리
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.Log($"Login Error : {www.error}");
             }
             else
             {
-                var respone = JsonUtility.FromJson<LoginResponse>(www.downloadHandler.text);
-                SaveTokenToPrefs(respone.accessToken, respone.refreshToken, DateTime.UtcNow.AddMinutes(15));
+                // 로그인 성공 시 accessToken과 refreshToken을 저장
+                var response = JsonUtility.FromJson<LoginResponse>(www.downloadHandler.text);
+                SaveTokenToPrefs(response.accessToken, response.refreshToken, DateTime.UtcNow.AddMinutes(15));
 
                 Debug.Log("Login successful");
-
             }
         }
     }
 
-    // 로그아웃 코루틴
+    // 로그아웃 요청을 보내는 코루틴
     public IEnumerator Logout()
     {
         var logoutData = new { refreshToken };
@@ -151,19 +156,21 @@ public class AuthManager : MonoBehaviour
 
         using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/logout", "POST"))
         {
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
 
-            yield return www.SendWebRequest();
+            yield return www.SendWebRequest();  // 서버 요청 보내기
 
+            // 서버 응답 처리
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.Log($"Logout Error : {www.error}");
             }
             else
             {
+                // 로그아웃 성공 시 토큰 정보 삭제
                 accessToken = "";
                 refreshToken = "";
                 tokenExpiryTime = DateTime.MinValue;
@@ -177,7 +184,7 @@ public class AuthManager : MonoBehaviour
         }
     }
 
-    // 토큰 갱신 코루틴
+    // refresh token을 사용해 access token을 갱신하는 코루틴
     public IEnumerator RefreshToken()
     {
         if (string.IsNullOrEmpty(refreshToken))
@@ -191,21 +198,22 @@ public class AuthManager : MonoBehaviour
 
         using (UnityWebRequest www = UnityWebRequest.PostWwwForm($"{SERVER_URL}/token", "POST"))
         {
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);  // JSON 데이터를 바이트 배열로 변환
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
 
-            yield return www.SendWebRequest();
+            yield return www.SendWebRequest();  // 서버 요청 보내기
 
-
+            // 서버 응답 처리
             if (www.result != UnityWebRequest.Result.Success)
             {
-                Debug.Log($"Registeration Error : {www.error}");
-                yield return Login("username", "password"); // 실구현에서는 저장된 사용자 정보를 사용
+                Debug.Log($"Token Refresh Error : {www.error}");
+                yield return Login("username", "password"); // 로그인 시도 (실제로는 저장된 사용자 정보 사용)
             }
             else
             {
+                // 갱신된 accessToken 저장
                 var response = JsonUtility.FromJson<RefreshTokenResponse>(www.downloadHandler.text);
                 SaveTokenToPrefs(response.accessToken, refreshToken, DateTime.UtcNow.AddMinutes(15));
                 Debug.Log("Token refreshed successfully");
@@ -213,20 +221,24 @@ public class AuthManager : MonoBehaviour
         }
     }
 
-    // 보호된 데이터 가져오기 코루틴
+    // 보호된 데이터 요청을 보내는 코루틴
     public IEnumerator GetProtectedData()
     {
+        // 토큰이 없거나 만료된 경우 토큰 갱신 시도
         if (string.IsNullOrEmpty(accessToken) || DateTime.UtcNow >= tokenExpiryTime)
         {
             Debug.Log("토큰이 만료되었습니다. 토큰 갱신 시도");
+            yield return RefreshToken();  // 토큰 갱신 시도
         }
 
+        // 보호된 데이터 요청 보내기
         using (UnityWebRequest www = UnityWebRequest.Get($"{SERVER_URL}/protected"))
         {
             www.SetRequestHeader("Authorization", $"Bearer {accessToken}");
 
-            yield return www.SendWebRequest();
+            yield return www.SendWebRequest();  // 서버 요청 보내기
 
+            // 서버 응답 처리
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.Log($"GetProtectedData Error : {www.error}");
@@ -238,4 +250,3 @@ public class AuthManager : MonoBehaviour
         }
     }
 }
-
